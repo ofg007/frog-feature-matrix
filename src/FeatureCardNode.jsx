@@ -20,7 +20,7 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
   const [isExpanded, setIsExpanded] = useState(false);
   const [showViabilityTooltip, setShowViabilityTooltip] = useState(false);
 
-  const feasibility = (positionAbsoluteX / 400 + 1).toFixed(1);
+  const avgFeasibility = (positionAbsoluteX / 400 + 1).toFixed(2);
   const desirability = (5 - positionAbsoluteY / 300).toFixed(1);
 
   const showArrow = data.viability === 'A' && data.showViabilityBadges !== false;
@@ -121,6 +121,11 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
               {data.description}
             </p>
           )}
+          {data.viabilityComment && data.showViabilityBadges !== false && (
+            <p style={{ margin: '6px 0 0', fontSize: '10px', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '4px', padding: '4px 7px', lineHeight: 1.4 }}>
+              {data.viabilityComment}
+            </p>
+          )}
           {data.showCoordinates && (
             <div style={{
               borderTop: '1px solid #f1f5f9',
@@ -131,7 +136,16 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
                 Desirability <strong style={{ color: '#475569', fontWeight: 600 }}>{desirability}</strong>
               </span>
               <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                Feasibility <strong style={{ color: '#475569', fontWeight: 600 }}>{feasibility}</strong>
+                Technical Feasibility <strong style={{ color: '#475569', fontWeight: 600 }}>{data.techFeasibility?.toFixed(2) ?? '—'}</strong>
+              </span>
+              <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                Business Feasibility <strong style={{ color: '#475569', fontWeight: 600 }}>{data.bizFeasibility?.toFixed(2) ?? '—'}</strong>
+              </span>
+              <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                Legal Feasibility <strong style={{ color: '#475569', fontWeight: 600 }}>{data.legalFeasibility?.toFixed(2) ?? '—'}</strong>
+              </span>
+              <span style={{ fontSize: '10px', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '3px', marginTop: '1px' }}>
+                Avg. Feasibility <strong style={{ color: '#475569', fontWeight: 600 }}>{avgFeasibility}</strong>
               </span>
             </div>
           )}

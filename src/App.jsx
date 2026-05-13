@@ -284,6 +284,9 @@ function Flow() {
   const [hiddenSubClusters, setHiddenSubClusters] = useState(() => loadFromStorage('fm_hiddenSubClusters', [], true));
   const [colors, setColors] = useState(() => loadFromStorage('fm_colors', {}));
   const [expandedClusters, setExpandedClusters] = useState(() => loadFromStorage('fm_expandedClusters', [], true));
+  const [fileGroups, setFileGroups] = useState(() => loadFromStorage('fm_fileGroups', []));
+  const [editingGroupId, setEditingGroupId] = useState(null);
+  const [editingGroupValue, setEditingGroupValue] = useState('');
   const [hoveredTooltip, setHoveredTooltip] = useState(null);
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -376,6 +379,10 @@ function Flow() {
     localStorage.setItem('fm_settings', JSON.stringify(settings));
   }, [settings]);
 
+  useEffect(() => {
+    localStorage.setItem('fm_fileGroups', JSON.stringify(fileGroups));
+  }, [fileGroups]);
+
   const quadrantNodes = useMemo(() => {
     if (!settings.showQuadrants) return [];
     const mk = (id, x, y, bg, color, borderRadius, label, labelCorner) => ({
@@ -409,6 +416,7 @@ function Flow() {
     setHiddenSubClusters(new Set());
     setColors({});
     setExpandedClusters(new Set());
+    setFileGroups([]);
     setPast([]);
     setFuture([]);
     setIsConfirmingClear(false);
@@ -422,7 +430,8 @@ function Flow() {
   const handleFileUpload = (event) => {
     const files = event.target.files;
     if (files && files.length > 0) {
-      parseCSVs(files, (parsedNodes) => {
+      parseCSVs(files, (parsedNodes, incomingGroups) => {
+        setFileGroups(incomingGroups);
         const axisNodes = [
           {
             id: 'x-axis',
@@ -498,6 +507,17 @@ function Flow() {
       tree[clusterName].subClusters[subClusterName].nodes.push(node);
     });
     return tree;
+  }, [nodes]);
+
+  // Maps each clusterName to its source fileGroupId
+  const clusterFileGroup = useMemo(() => {
+    const map = {};
+    nodes.forEach(node => {
+      if (node.type !== 'featureCard') return;
+      const { clusterName, fileGroupId } = node.data;
+      if (clusterName && !map[clusterName]) map[clusterName] = fileGroupId || null;
+    });
+    return map;
   }, [nodes]);
 
   // Apply hidden state, colors, and settings to nodes
@@ -632,166 +652,126 @@ function Flow() {
             <div style={{ color: '#94a3b8', fontSize: '13px', fontStyle: 'italic', padding: '12px 0' }}>
               No clusters found. Upload CSVs to get started.
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {Object.entries(hierarchy).map(([clusterName, clusterData]) => {
-                const isClusterHidden = hiddenClusters.has(clusterName);
-                const isExpanded = expandedClusters.has(clusterName);
-                const isClusterSelected = Object.values(clusterData.subClusters).some(sub => sub.nodes.some(n => n.selected));
+          ) : (() => {
+            // Build the ordered list of groups to render
+            const groupsToRender = fileGroups.length > 0
+              ? fileGroups.map(fg => ({ id: fg.id, name: fg.name, entries: Object.entries(hierarchy).filter(([cn]) => clusterFileGroup[cn] === fg.id) })).filter(g => g.entries.length > 0)
+              : [{ id: null, name: null, entries: Object.entries(hierarchy) }];
 
-                return (
-                  <div key={clusterName} style={{
-                    border: isClusterSelected ? '2px solid #3b82f6' : '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                    boxShadow: isClusterSelected
-                      ? '0 10px 25px -5px rgba(59, 130, 246, 0.3), 0 8px 10px -6px rgba(59, 130, 246, 0.1)'
-                      : '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.05)',
-                    transition: 'all 0.3s ease'
-                  }}>
-                    {/* Cluster Header */}
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: '8px', padding: '10px',
-                      background: isClusterHidden ? '#f1f5f9' : '#f8fafc',
-                      borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none'
-                    }}>
-                      <button onClick={() => toggleAccordion(clusterName)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#64748b', display: 'flex', alignItems: 'center' }}>
-                        {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                      </button>
-                      <input
-                        type="checkbox"
-                        checked={!isClusterHidden}
-                        onChange={() => toggleCluster(clusterName)}
-                        style={{ width: '16px', height: '16px', accentColor: '#3b82f6', cursor: 'pointer' }}
-                      />
-                      <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, color: isClusterHidden ? '#94a3b8' : '#0f172a' }}>
-                        {clusterName}
-                      </span>
-                      <CustomColorPicker
-                        color={colors[clusterName] || '#000000'}
-                        onChange={(hex) => updateColor(clusterName, hex)}
-                        size={24}
-                      />
-                    </div>
+            const renderClusterCard = (clusterName, clusterData) => {
+              const isClusterHidden = hiddenClusters.has(clusterName);
+              const isExpanded = expandedClusters.has(clusterName);
+              const isClusterSelected = Object.values(clusterData.subClusters).some(sub => sub.nodes.some(n => n.selected));
+              return (
+                <div key={clusterName} style={{
+                  border: isClusterSelected ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                  borderRadius: '8px', overflow: 'hidden',
+                  boxShadow: isClusterSelected
+                    ? '0 10px 25px -5px rgba(59,130,246,0.3), 0 8px 10px -6px rgba(59,130,246,0.1)'
+                    : '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.05)',
+                  transition: 'all 0.3s ease'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', background: isClusterHidden ? '#f1f5f9' : '#f8fafc', borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none' }}>
+                    <button onClick={() => toggleAccordion(clusterName)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#64748b', display: 'flex', alignItems: 'center' }}>
+                      {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                    </button>
+                    <input type="checkbox" checked={!isClusterHidden} onChange={() => toggleCluster(clusterName)} style={{ width: '16px', height: '16px', accentColor: '#3b82f6', cursor: 'pointer' }} />
+                    <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, color: isClusterHidden ? '#94a3b8' : '#0f172a' }}>{clusterName}</span>
+                    <CustomColorPicker color={colors[clusterName] || '#000000'} onChange={(hex) => updateColor(clusterName, hex)} size={24} />
+                  </div>
 
-                    {/* Sub-clusters */}
-                    {isExpanded && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px 8px 8px 24px', background: 'white' }}>
-                        {Object.entries(clusterData.subClusters).map(([subName, subData]) => {
-                          const subKey = `${clusterName}|${subName}`;
-                          const isSubHidden = hiddenSubClusters.has(subKey) || isClusterHidden;
-                          const isSubClusterSelected = subData.nodes.some(n => n.selected);
-
-                          return (
-                            <div key={subKey} style={{
-                              border: isSubClusterSelected ? '2px solid #93c5fd' : '1px solid #e2e8f0',
-                              borderRadius: '6px',
-                              background: isSubClusterSelected ? '#eff6ff' : '#f8fafc',
-                              overflow: 'hidden',
-                              transition: 'all 0.3s ease'
-                            }}>
-                              <div style={{
-                                display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px'
-                              }}>
-                                <input
-                                  type="checkbox"
-                                  checked={!isSubHidden}
-                                  onChange={() => toggleSubCluster(subKey)}
-                                  disabled={isClusterHidden}
-                                  style={{ width: '14px', height: '14px', accentColor: '#3b82f6', cursor: isClusterHidden ? 'not-allowed' : 'pointer', opacity: isClusterHidden ? 0.5 : 1 }}
-                                />
-                                <span style={{ flex: 1, fontSize: '13px', color: isSubHidden ? '#94a3b8' : '#334155' }}>
-                                  {subName} ({subData.nodes.length})
-                                </span>
-
-                                {subData.viability && settings.showViabilityBadges && (
-                                  <div
-                                    style={{ cursor: 'help', display: 'flex', alignItems: 'center' }}
-                                    onMouseEnter={(e) => {
-                                      const rect = e.currentTarget.getBoundingClientRect();
-                                      setHoveredTooltip({
-                                        text: 'Note: Long term business impact considering: TAM, Revenue potential, DT right-to-play, Global scalability',
-                                        top: rect.top + window.scrollY + rect.height / 2,
-                                        left: rect.right + window.scrollX + 10
-                                      });
-                                    }}
-                                    onMouseLeave={() => setHoveredTooltip(null)}
-                                  >
-                                    <span style={{
-                                      background: subData.viability === 'A' ? '#dcfce7' : '#f1f5f9',
-                                      color: subData.viability === 'A' ? '#166534' : '#64748b',
-                                      border: `1px solid ${subData.viability === 'A' ? '#86efac' : '#cbd5e1'}`,
-                                      borderRadius: '9999px', padding: '1px 6px',
-                                      fontSize: '9px', fontWeight: 700,
-                                      userSelect: 'none',
-                                    }}>
-                                      {subData.viability === 'A' ? 'Sustainable business impact' : 'No major business impact'}
-                                    </span>
-                                  </div>
-                                )}
-
-                                <div
-                                  style={{ color: '#94a3b8', cursor: 'help', display: 'flex', alignItems: 'center' }}
-                                  onMouseEnter={(e) => {
-                                    if (subData.explanation) {
-                                      const rect = e.currentTarget.getBoundingClientRect();
-                                      setHoveredTooltip({
-                                        text: subData.explanation,
-                                        top: rect.top + window.scrollY + rect.height / 2,
-                                        left: rect.right + window.scrollX + 10
-                                      });
-                                    }
-                                  }}
-                                  onMouseLeave={() => setHoveredTooltip(null)}
-                                >
-                                  <Info size={14} />
-                                </div>
-
-                                <CustomColorPicker
-                                  color={colors[subKey] || '#000000'}
-                                  onChange={(hex) => updateColor(subKey, hex)}
-                                  size={20}
-                                />
-                              </div>
-
-                              {!isSubHidden && (
-                                <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '4px' }}>
-                                  {subData.nodes.map(n => (
-                                    <div
-                                      key={n.id}
-                                      onClick={() => {
-                                        setNodes(nds => nds.map(node => ({
-                                          ...node,
-                                          selected: node.id === n.id
-                                        })));
-                                      }}
-                                      style={{
-                                        margin: '2px 8px 4px 8px',
-                                        padding: '6px 12px',
-                                        fontSize: '12px',
-                                        color: n.selected ? '#1e40af' : '#475569',
-                                        background: 'transparent',
-                                        fontWeight: n.selected ? 600 : 400,
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease'
-                                      }}
-                                    >
-                                      {n.data.title}
-                                    </div>
-                                  ))}
+                  {isExpanded && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px 8px 8px 24px', background: 'white' }}>
+                      {Object.entries(clusterData.subClusters).map(([subName, subData]) => {
+                        const subKey = `${clusterName}|${subName}`;
+                        const isSubHidden = hiddenSubClusters.has(subKey) || isClusterHidden;
+                        const isSubClusterSelected = subData.nodes.some(n => n.selected);
+                        return (
+                          <div key={subKey} style={{ border: isSubClusterSelected ? '2px solid #93c5fd' : '1px solid #e2e8f0', borderRadius: '6px', background: isSubClusterSelected ? '#eff6ff' : '#f8fafc', overflow: 'hidden', transition: 'all 0.3s ease' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px' }}>
+                              <input type="checkbox" checked={!isSubHidden} onChange={() => toggleSubCluster(subKey)} disabled={isClusterHidden} style={{ width: '14px', height: '14px', accentColor: '#3b82f6', cursor: isClusterHidden ? 'not-allowed' : 'pointer', opacity: isClusterHidden ? 0.5 : 1 }} />
+                              <span style={{ flex: 1, fontSize: '13px', color: isSubHidden ? '#94a3b8' : '#334155' }}>{subName} ({subData.nodes.length})</span>
+                              {subData.viability && settings.showViabilityBadges && (
+                                <div style={{ cursor: 'help', display: 'flex', alignItems: 'center' }}
+                                  onMouseEnter={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setHoveredTooltip({ text: 'Note: Long term business impact considering: TAM, Revenue potential, DT right-to-play, Global scalability', top: rect.top + window.scrollY + rect.height / 2, left: rect.right + window.scrollX + 10 }); }}
+                                  onMouseLeave={() => setHoveredTooltip(null)}>
+                                  <span style={{ background: subData.viability === 'A' ? '#dcfce7' : '#f1f5f9', color: subData.viability === 'A' ? '#166534' : '#64748b', border: `1px solid ${subData.viability === 'A' ? '#86efac' : '#cbd5e1'}`, borderRadius: '9999px', padding: '1px 6px', fontSize: '9px', fontWeight: 700, userSelect: 'none' }}>
+                                    {subData.viability === 'A' ? 'Sustainable business impact' : 'No major business impact'}
+                                  </span>
                                 </div>
                               )}
+                              <div style={{ color: '#94a3b8', cursor: 'help', display: 'flex', alignItems: 'center' }}
+                                onMouseEnter={(e) => { if (subData.explanation) { const rect = e.currentTarget.getBoundingClientRect(); setHoveredTooltip({ text: subData.explanation, top: rect.top + window.scrollY + rect.height / 2, left: rect.right + window.scrollX + 10 }); } }}
+                                onMouseLeave={() => setHoveredTooltip(null)}>
+                                <Info size={14} />
+                              </div>
+                              <CustomColorPicker color={colors[subKey] || '#000000'} onChange={(hex) => updateColor(subKey, hex)} size={20} />
                             </div>
-                          );
-                        })}
+                            {!isSubHidden && (
+                              <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '4px' }}>
+                                {subData.nodes.map(n => (
+                                  <div key={n.id} onClick={() => setNodes(nds => nds.map(node => ({ ...node, selected: node.id === n.id })))}
+                                    style={{ margin: '2px 8px 4px 8px', padding: '6px 12px', fontSize: '12px', color: n.selected ? '#1e40af' : '#475569', background: 'transparent', fontWeight: n.selected ? 600 : 400, borderRadius: '4px', cursor: 'pointer', transition: 'all 0.2s ease' }}>
+                                    {n.data.title}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            };
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                {groupsToRender.map((group, groupIndex) => (
+                  <div key={group.id ?? '__all__'}>
+                    {/* Separator between file groups */}
+                    {groupIndex > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '16px 0 12px' }}>
+                        <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
                       </div>
                     )}
+
+                    {/* File group header — shown only when multiple files */}
+                    {group.id !== null && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                        {editingGroupId === group.id ? (
+                          <input
+                            autoFocus
+                            value={editingGroupValue}
+                            onChange={e => setEditingGroupValue(e.target.value)}
+                            onBlur={() => {
+                              setFileGroups(prev => prev.map(fg => fg.id === group.id ? { ...fg, name: editingGroupValue || fg.id } : fg));
+                              setEditingGroupId(null);
+                            }}
+                            onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditingGroupId(null); }}
+                            style={{ flex: 1, fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', border: '1px solid #93c5fd', borderRadius: '4px', padding: '2px 6px', outline: 'none', background: '#eff6ff' }}
+                          />
+                        ) : (
+                          <span
+                            title="Click to rename"
+                            onClick={() => { setEditingGroupId(group.id); setEditingGroupValue(group.name); }}
+                            style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer', borderBottom: '1px dashed #cbd5e1', paddingBottom: '1px' }}
+                          >
+                            {group.name}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {group.entries.map(([clusterName, clusterData]) => renderClusterCard(clusterName, clusterData))}
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
