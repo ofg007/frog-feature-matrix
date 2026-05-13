@@ -12,7 +12,8 @@ import {
 import '@xyflow/react/dist/style.css';
 import { parseCSVs, exportToCSV } from './utils/csvParser';
 import FeatureCardNode, { moveToBucketRef } from './FeatureCardNode';
-import { Download, Upload, Filter, Eye, EyeOff, Info, ChevronDown, ChevronRight, Trash2, Settings, Archive, X, RotateCcw } from 'lucide-react';
+import { Download, Upload, Filter, Eye, EyeOff, Info, ChevronDown, ChevronRight, Trash2, Settings, Archive, X, RotateCcw, FileText } from 'lucide-react';
+import { generatePDF } from './utils/pdfExport';
 
 const AxisNode = ({ data }) => {
   return (
@@ -290,6 +291,8 @@ function Flow() {
   const [hoveredTooltip, setHoveredTooltip] = useState(null);
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
+  const [pdfOptions, setPdfOptions] = useState({ includeCoordinates: false, includeViability: true });
   const [isBucketOpen, setIsBucketOpen] = useState(false);
   const [settings, setSettings] = useState(() =>
     loadFromStorage('fm_settings', { showAxisValues: false, showCardCoordinates: false, showQuadrants: false, showViabilityBadges: true })
@@ -940,6 +943,13 @@ function Flow() {
             >
               <Download size={18} /> Export Coordinates
             </button>
+            <button
+              onClick={() => setIsPdfDialogOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0f172a', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 500, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+              disabled={nodes.length === 0}
+            >
+              <FileText size={18} /> Export PDF
+            </button>
             {nodes.length > 0 && (
               <button
                 onClick={() => setIsConfirmingClear(true)}
@@ -1111,6 +1121,49 @@ function Flow() {
                 style={{ flex: 1, background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '10px 0', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
               >
                 No, Snap Back
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {isPdfDialogOpen && createPortal(
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', maxWidth: '420px', width: '90%' }}>
+            <div style={{ background: '#f1f5f9', width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
+              <FileText size={24} color="#0f172a" />
+            </div>
+            <h3 style={{ margin: '0 0 6px', fontSize: '18px', color: '#0f172a', textAlign: 'center' }}>Export to PDF</h3>
+            <p style={{ margin: '0 0 24px', fontSize: '13px', color: '#64748b', textAlign: 'center', lineHeight: 1.5 }}>
+              A4 format · ~7.5 cm wide cards · 2 per row · only visible cards included
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid #f1f5f9', gap: '16px' }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>Include coordinates</div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>Print feasibility and desirability values on each card</div>
+              </div>
+              <ToggleSwitch checked={pdfOptions.includeCoordinates} onChange={() => setPdfOptions(o => ({ ...o, includeCoordinates: !o.includeCoordinates }))} />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', gap: '16px' }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>Include viability</div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>Print viability badge and comment on each card</div>
+              </div>
+              <ToggleSwitch checked={pdfOptions.includeViability} onChange={() => setPdfOptions(o => ({ ...o, includeViability: !o.includeViability }))} />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+              <button onClick={() => setIsPdfDialogOpen(false)} style={{ flex: 1, background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => { generatePDF(nodes, pdfOptions); setIsPdfDialogOpen(false); }}
+                style={{ flex: 1, background: '#0f172a', color: 'white', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}
+              >
+                Export
               </button>
             </div>
           </div>
