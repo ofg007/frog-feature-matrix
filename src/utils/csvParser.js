@@ -37,6 +37,12 @@ export const parseCSVs = async (files, callback) => {
     for (const { data, fileGroupId } of allResults) {
       fileGroups.push({ id: fileGroupId, name: fileGroupId });
 
+      // Detect format from header row:
+      // Legacy: col5=Feasibility, col6=Desirability, col7=Viability, col8=ViabilityComment
+      // New:    col5=TechF, col6=BizF, col7=LegalF, col8=Desirability, col9=Viability, col10=ViabilityComment
+      const headerRow = data[0] || [];
+      const isNewFormat = /desirability/i.test(headerRow[8] || '');
+
       const rows = data.slice(1); // skip header row
 
       const nodes = rows.map((row) => {
@@ -50,23 +56,37 @@ export const parseCSVs = async (files, callback) => {
         const functionName = na(row[3]) || `Feature ${index + 1}`;
         const featureExplanation = na(row[4]);
 
-        const parsedTechF  = parseFloat(row[5]);
-        const parsedBizF   = parseFloat(row[6]);
-        const parsedLegalF = parseFloat(row[7]);
-        const parsedY      = parseFloat(row[8]);
+        let techFeasibility, bizFeasibility, legalFeasibility, rawY, viability, viabilityComment;
 
-        const outOfScope = isNaN(parsedTechF) || isNaN(parsedBizF) || isNaN(parsedLegalF) || isNaN(parsedY);
-
-        const techFeasibility  = isNaN(parsedTechF)  ? 1 : parsedTechF;
-        const bizFeasibility   = isNaN(parsedBizF)   ? 1 : parsedBizF;
-        const legalFeasibility = isNaN(parsedLegalF) ? 1 : parsedLegalF;
-        const rawY = isNaN(parsedY) ? 1 : parsedY;
+        if (isNewFormat) {
+          const parsedTechF  = parseFloat(row[5]);
+          const parsedBizF   = parseFloat(row[6]);
+          const parsedLegalF = parseFloat(row[7]);
+          const parsedY      = parseFloat(row[8]);
+          const outOfScopeNew = isNaN(parsedTechF) || isNaN(parsedBizF) || isNaN(parsedLegalF) || isNaN(parsedY);
+          techFeasibility  = isNaN(parsedTechF)  ? 1 : parsedTechF;
+          bizFeasibility   = isNaN(parsedBizF)   ? 1 : parsedBizF;
+          legalFeasibility = isNaN(parsedLegalF) ? 1 : parsedLegalF;
+          rawY = isNaN(parsedY) ? 1 : parsedY;
+          const rawV = (row[9] || '').toString().trim().toUpperCase();
+          viability = (rawV === 'A' || rawV === 'B') ? rawV : null;
+          viabilityComment = na(row[10]) || null;
+          // reuse outOfScope below
+          var outOfScope = outOfScopeNew;
+        } else {
+          // Legacy single-feasibility format
+          const parsedX = parseFloat(row[5]);
+          const parsedY_ = parseFloat(row[6]);
+          outOfScope = isNaN(parsedX) || isNaN(parsedY_);
+          const singleF = isNaN(parsedX) ? 1 : parsedX;
+          techFeasibility = bizFeasibility = legalFeasibility = singleF;
+          rawY = isNaN(parsedY_) ? 1 : parsedY_;
+          const rawV = (row[7] || '').toString().trim().toUpperCase();
+          viability = (rawV === 'A' || rawV === 'B') ? rawV : null;
+          viabilityComment = na(row[8]) || null;
+        }
 
         const avgFeasibility = (techFeasibility + bizFeasibility + legalFeasibility) / 3;
-
-        const rawViability = (row[9] || '').toString().trim().toUpperCase();
-        const viability = (rawViability === 'A' || rawViability === 'B') ? rawViability : null;
-        const viabilityComment = na(row[10]) || null;
 
         let posX = (avgFeasibility - 1) * SCALE_X;
         let posY = (Y_MAX_VALUE - rawY) * SCALE_Y;
