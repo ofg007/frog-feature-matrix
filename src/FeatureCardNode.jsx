@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, GripHorizontal, Archive } from 'lucide-react';
+import { ChevronDown, GripHorizontal, Archive } from 'lucide-react';
 
 export const moveToBucketRef = { current: null };
 
@@ -20,7 +20,7 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
   const [isExpanded, setIsExpanded] = useState(false);
   const [showViabilityTooltip, setShowViabilityTooltip] = useState(false);
 
-  const avgFeasibility = (positionAbsoluteX / 400 + 1).toFixed(2);
+  const avgFeasibility = (positionAbsoluteX / 400 + 1).toFixed(1);
   const desirability = (5 - positionAbsoluteY / 300).toFixed(1);
 
   const showArrow = data.viability === 'A' && data.showViabilityBadges !== false;
@@ -29,14 +29,16 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
     <div style={{
       background: 'white',
       borderRadius: '10px',
-      border: `1.5px solid ${selected ? '#3b82f6' : '#e2e8f0'}`,
+      border: `1.5px solid ${selected ? '#3b82f6' : isExpanded ? '#c7d2fe' : '#e2e8f0'}`,
       padding: '8px 10px 8px',
       paddingTop: '18px',
-      width: '180px',
+      width: isExpanded ? '300px' : '180px',
       boxShadow: selected
         ? '0 8px 24px -4px rgba(59, 130, 246, 0.22)'
-        : '0 2px 8px rgba(0,0,0,0.07)',
-      transition: 'box-shadow 0.2s, border-color 0.2s',
+        : isExpanded
+          ? '0 8px 20px -4px rgba(0,0,0,0.12)'
+          : '0 2px 8px rgba(0,0,0,0.07)',
+      transition: 'width 0.25s ease, box-shadow 0.2s, border-color 0.2s',
       position: 'relative',
     }}>
 
@@ -71,13 +73,21 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
             <div style={{
               position: 'absolute', right: 0, top: 'calc(100% + 4px)',
               background: '#1e293b', color: 'white',
-              padding: '6px 10px', borderRadius: '6px',
-              fontSize: '10px', lineHeight: 1.4,
-              whiteSpace: 'normal', width: '170px',
+              padding: '8px 10px', borderRadius: '6px',
+              fontSize: '10px', lineHeight: 1.5,
+              whiteSpace: 'normal', width: '200px',
               boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
               pointerEvents: 'none', zIndex: 9999,
             }}>
-              Sustainable business impact
+              <div style={{ fontWeight: 700, marginBottom: data.viabilityComment ? '5px' : 0 }}>
+                Sustainable business impact
+              </div>
+              {data.viabilityComment && (
+                <div style={{ color: '#94a3b8' }}>
+                  <span style={{ color: '#cbd5e1', fontWeight: 600 }}>Reason: </span>
+                  {data.viabilityComment}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -90,6 +100,7 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
         fontWeight: 600,
         color: '#1e293b',
         lineHeight: 1.35,
+        paddingRight: showArrow ? '28px' : 0,
       }}>
         {data.title}
       </p>
@@ -97,12 +108,12 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
       {/* Tags */}
       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
         {data.clusterName && (
-          <span style={{ ...TAG, background: data.clusterColor || '#e2e8f0', border: 'none' }}>
+          <span style={{ ...TAG, background: data.clusterColor || '#94a3b8', color: 'white', border: 'none' }}>
             {data.clusterName}
           </span>
         )}
         {data.subClusterName && (
-          <span style={{ ...TAG, background: data.subClusterColor || '#f1f5f9', border: 'none' }}>
+          <span style={{ ...TAG, background: 'transparent', color: '#334155', border: `1px solid ${data.clusterColor || '#94a3b8'}` }}>
             {data.subClusterName}
           </span>
         )}
@@ -111,68 +122,70 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
       {/* Expanding section */}
       <div style={{
         overflow: 'hidden',
-        maxHeight: isExpanded ? '250px' : '0px',
+        maxHeight: isExpanded ? '500px' : '0px',
         opacity: isExpanded ? 1 : 0,
         transition: 'max-height 0.3s ease, opacity 0.25s ease',
       }}>
-        <div style={{ paddingTop: '10px' }}>
+        <div style={{
+          marginTop: '10px',
+          background: '#f8fafc',
+          borderRadius: '6px',
+          padding: '10px',
+          borderTop: '1px solid #e2e8f0',
+        }}>
           {data.description && (
-            <p style={{ margin: 0, color: '#64748b', fontSize: '11px', lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 8px', color: '#475569', fontSize: '11px', lineHeight: 1.6 }}>
               {data.description}
-            </p>
-          )}
-          {data.viabilityComment && data.showViabilityBadges !== false && (
-            <p style={{ margin: '6px 0 0', fontSize: '10px', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '4px', padding: '4px 7px', lineHeight: 1.4 }}>
-              {data.viabilityComment}
             </p>
           )}
           {data.showCoordinates && (
             <div style={{
-              borderTop: '1px solid #f1f5f9',
-              paddingTop: '7px', marginTop: '8px',
+              borderTop: data.description ? '1px solid #e2e8f0' : 'none',
+              paddingTop: data.description ? '8px' : '0',
               display: 'flex', flexDirection: 'column', gap: '3px',
             }}>
-              <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                Desirability <strong style={{ color: '#475569', fontWeight: 600 }}>{desirability}</strong>
-              </span>
-              <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                Technical Feasibility <strong style={{ color: '#475569', fontWeight: 600 }}>{data.techFeasibility?.toFixed(2) ?? '—'}</strong>
-              </span>
-              <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                Business Feasibility <strong style={{ color: '#475569', fontWeight: 600 }}>{data.bizFeasibility?.toFixed(2) ?? '—'}</strong>
-              </span>
-              <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                Legal Feasibility <strong style={{ color: '#475569', fontWeight: 600 }}>{data.legalFeasibility?.toFixed(2) ?? '—'}</strong>
-              </span>
-              <span style={{ fontSize: '10px', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '3px', marginTop: '1px' }}>
-                Avg. Feasibility <strong style={{ color: '#475569', fontWeight: 600 }}>{avgFeasibility}</strong>
-              </span>
+              {/* Individual feasibility — both label and value grey */}
+              {[['Technical Feasibility', data.techFeasibility], ['Business Feasibility', data.bizFeasibility], ['Legal Feasibility', data.legalFeasibility]].map(([label, val]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#94a3b8' }}>
+                  <span>{label}</span><span>{val?.toFixed(1) ?? '—'}</span>
+                </div>
+              ))}
+              {/* Divider */}
+              <div style={{ borderTop: '1px solid #e2e8f0', margin: '2px 0' }} />
+              {/* Avg. Feasibility and Desirability — label and value black, bold */}
+              {[['Avg. Feasibility', avgFeasibility], ['Desirability', desirability]].map(([label, val]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: '#1e293b' }}>
+                  <span>{label}</span><span>{val}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* Bottom row */}
-      <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center' }}>
+      {/* Bottom row — archive left, expand/collapse right */}
+      <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center' }}>
+        <div
+          onClick={(e) => { e.stopPropagation(); moveToBucketRef.current?.(id); }}
+          title="Move to Out of Scope"
+          style={{ cursor: 'pointer', color: '#e2e8f0', transition: 'color 0.15s', display: 'flex', alignItems: 'center' }}
+          onMouseEnter={(e) => e.currentTarget.style.color = '#f87171'}
+          onMouseLeave={(e) => e.currentTarget.style.color = '#e2e8f0'}
+        >
+          <Archive size={11} />
+        </div>
         <div style={{ flex: 1 }} />
         <div
           onClick={(e) => { e.stopPropagation(); setIsExpanded(x => !x); }}
-          style={{ cursor: 'pointer', color: '#d1d5db', transition: 'color 0.15s', display: 'flex', alignItems: 'center' }}
+          style={{
+            cursor: 'pointer', color: '#d1d5db', display: 'flex', alignItems: 'center',
+            transform: isExpanded ? 'rotate(135deg)' : 'rotate(-45deg)',
+            transition: 'transform 0.25s ease, color 0.15s',
+          }}
           onMouseEnter={(e) => e.currentTarget.style.color = '#94a3b8'}
           onMouseLeave={(e) => e.currentTarget.style.color = '#d1d5db'}
         >
-          {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-        </div>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-          <div
-            onClick={(e) => { e.stopPropagation(); moveToBucketRef.current?.(id); }}
-            title="Move to Out of Scope"
-            style={{ cursor: 'pointer', color: '#e2e8f0', transition: 'color 0.15s', display: 'flex', alignItems: 'center' }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#f87171'}
-            onMouseLeave={(e) => e.currentTarget.style.color = '#e2e8f0'}
-          >
-            <Archive size={11} />
-          </div>
+          <ChevronDown size={13} />
         </div>
       </div>
     </div>

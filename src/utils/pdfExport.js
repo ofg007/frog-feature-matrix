@@ -5,69 +5,66 @@ const esc = (str) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-const renderCard = (node, options) => {
+const firstWord = (name) =>
+  (name || '').split(/[_\s\-]+/)[0].toUpperCase();
+
+const f1 = (n) => Number(n).toFixed(1);
+
+const renderCard = (node, options, fileGroupNames) => {
   const { includeCoordinates, includeViability } = options;
   const d = node.data;
 
-  // Tags
+  const groupName = fileGroupNames[d.fileGroupId] || d.fileGroupId || '';
+  const fileLabel = firstWord(groupName);
+
+  const viabilityArrow = (includeViability && d.viability === 'A')
+    ? `<span class="viability-arrow">↗</span>`
+    : '';
+
+  const color = d.clusterColor || '#94a3b8';
   const clusterTag = d.clusterName
-    ? `<span class="tag" style="background:${d.clusterColor || '#e2e8f0'}">${esc(d.clusterName)}</span>`
+    ? `<span class="tag tag-filled" style="background:${color}">${esc(d.clusterName)}</span>`
     : '';
   const subTag = d.subClusterName
-    ? `<span class="tag" style="background:${d.subClusterColor || '#f1f5f9'}">${esc(d.subClusterName)}</span>`
+    ? `<span class="tag tag-outline" style="border-color:${color}">${esc(d.subClusterName)}</span>`
     : '';
 
-  // Viability badge (A only shows arrow in app, but in PDF show full label)
-  let viabilitySection = '';
-  if (includeViability && d.viability) {
-    const isA = d.viability === 'A';
-    const badgeClass = isA ? 'viability-a' : 'viability-b';
-    const label = isA ? '↗ Sustainable business impact' : 'No major business impact';
-    viabilitySection += `<span class="viability-badge ${badgeClass}">${label}</span>`;
-  }
-  if (includeViability && d.viabilityComment) {
-    viabilitySection += `<p class="viability-comment">${esc(d.viabilityComment)}</p>`;
-  }
+  const description = d.description
+    ? `<p class="description">${esc(d.description)}</p>`
+    : '';
 
-  // Coordinates
   let coordsSection = '';
-  if (includeCoordinates) {
-    const hasSplit =
-      d.techFeasibility != null &&
-      (d.techFeasibility !== d.bizFeasibility || d.bizFeasibility !== d.legalFeasibility);
-    const avgF = d.techFeasibility != null
-      ? ((d.techFeasibility + d.bizFeasibility + d.legalFeasibility) / 3).toFixed(2)
-      : null;
-    const des = d.rawY != null ? Number(d.rawY).toFixed(1) : null;
+  if (includeCoordinates && d.techFeasibility != null) {
+    const avgF = f1((d.techFeasibility + d.bizFeasibility + d.legalFeasibility) / 3);
 
-    const row = (label, val) =>
-      `<div class="coord-row"><span class="coord-label">${label}</span><strong>${val}</strong></div>`;
+    const row = (label, val, bold = false) =>
+      `<div class="coord-row${bold ? ' coord-bold' : ''}">` +
+      `<span class="coord-label">${label}</span>` +
+      `<span class="coord-value">${val}</span></div>`;
 
     let rows = '';
-    if (hasSplit) {
-      rows += row('Technical Feasibility', d.techFeasibility.toFixed(2));
-      rows += row('Business Feasibility', d.bizFeasibility.toFixed(2));
-      rows += row('Legal Feasibility', d.legalFeasibility.toFixed(2));
-      rows += `<div class="coord-row avg-row">${row('Avg. Feasibility', avgF).slice('<div class="coord-row">'.length, -6)}</div>`;
-    } else if (avgF) {
-      rows += row('Feasibility', avgF);
-    }
-    if (des) rows += row('Desirability', des);
+    rows += row('Technical Feasibility', f1(d.techFeasibility));
+    rows += row('Business Feasibility',  f1(d.bizFeasibility));
+    rows += row('Legal Feasibility',     f1(d.legalFeasibility));
+    rows += `<div class="coord-divider"></div>`;
+    rows += row('Avg. Feasibility', avgF, true);
+    if (d.rawY != null) rows += row('Desirability', f1(d.rawY), true);
 
-    if (rows) coordsSection = `<div class="coords">${rows}</div>`;
+    coordsSection = `<div class="coords">${rows}</div>`;
   }
 
   return `
     <div class="card">
+      ${viabilityArrow}
+      ${fileLabel ? `<div class="file-label">${esc(fileLabel)}</div>` : ''}
       <h3 class="card-title">${esc(d.title)}</h3>
       <div class="tags">${clusterTag}${subTag}</div>
-      ${viabilitySection}
-      ${d.description ? `<p class="description">${esc(d.description)}</p>` : ''}
+      ${description}
       ${coordsSection}
     </div>`;
 };
 
-export const generatePDF = (nodes, options) => {
+export const generatePDF = (nodes, options, fileGroupNames = {}) => {
   const visibleCards = nodes
     .filter(n => n.type === 'featureCard' && !n.hidden && !n.data?.outOfScope)
     .sort((a, b) => {
@@ -82,7 +79,7 @@ export const generatePDF = (nodes, options) => {
     return;
   }
 
-  const cards = visibleCards.map(n => renderCard(n, options)).join('\n');
+  const cards = visibleCards.map(n => renderCard(n, options, fileGroupNames)).join('\n');
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -97,73 +94,72 @@ export const generatePDF = (nodes, options) => {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
-      color: #1e293b;
+      color: #000;
     }
     .grid {
       display: grid;
-      grid-template-columns: 75mm 75mm;
+      grid-template-columns: 110mm;
       gap: 8mm;
       justify-content: center;
     }
     .card {
+      position: relative;
       break-inside: avoid;
       page-break-inside: avoid;
       border: 1.5px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 10px 12px;
+      border-radius: 0;
+      padding: 12px 14px;
       background: white;
-      font-size: 11px;
+    }
+    .viability-arrow {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+      border-radius: 9999px;
+      padding: 1px 6px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .file-label {
+      font-size: 8px;
+      font-weight: 300;
+      color: #000;
+      letter-spacing: 0.14em;
+      margin-bottom: 3px;
     }
     .card-title {
-      margin: 0 0 6px;
-      font-size: 12px;
-      font-weight: 600;
-      line-height: 1.35;
-      color: #1e293b;
+      margin: 0 0 8px;
+      font-size: 19px;
+      font-weight: 700;
+      line-height: 1.25;
+      color: #000;
+      padding-right: 28px;
     }
     .tags {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
     .tag {
-      padding: 2px 7px;
-      border-radius: 9999px;
-      font-size: 8px;
-      font-weight: 600;
-      color: #1e293b;
-    }
-    .viability-badge {
-      display: inline-block;
       padding: 2px 8px;
       border-radius: 9999px;
-      font-size: 8px;
-      font-weight: 700;
-      margin: 0 0 6px;
+      font-size: 9px;
+      font-weight: 600;
     }
-    .viability-a { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-    .viability-b { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+    .tag-filled { color: white; border: none; }
+    .tag-outline { background: transparent; color: #334155; border: 1px solid; }
     .description {
-      margin: 0 0 6px;
-      font-size: 10px;
-      color: #64748b;
+      margin: 0 0 7px;
+      font-size: 11px;
+      color: #000;
       line-height: 1.5;
     }
-    .viability-comment {
-      margin: 0 0 6px;
-      font-size: 9px;
-      color: #92400e;
-      background: #fffbeb;
-      border: 1px solid #fde68a;
-      border-radius: 4px;
-      padding: 4px 7px;
-      line-height: 1.4;
-    }
     .coords {
-      border-top: 1px solid #f1f5f9;
-      padding-top: 5px;
-      margin-top: 4px;
+      margin-top: 6px;
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -171,11 +167,14 @@ export const generatePDF = (nodes, options) => {
     .coord-row {
       display: flex;
       justify-content: space-between;
-      font-size: 9px;
+      font-size: 10px;
     }
-    .coord-label { color: #94a3b8; }
-    .coord-row strong { color: #475569; font-weight: 600; }
-    .avg-row { border-top: 1px solid #f1f5f9; padding-top: 2px; margin-top: 2px; }
+    .coord-label { color: #64748b; }
+    .coord-value { color: #64748b; }
+    .coord-bold { font-weight: 700; font-size: 11px; }
+    .coord-bold .coord-label { color: #000; }
+    .coord-bold .coord-value { color: #000; }
+    .coord-divider { border-top: 1px solid #e2e8f0; margin: 4px 0; }
   </style>
 </head>
 <body>

@@ -708,7 +708,6 @@ function Flow() {
                                 onMouseLeave={() => setHoveredTooltip(null)}>
                                 <Info size={14} />
                               </div>
-                              <CustomColorPicker color={colors[subKey] || '#000000'} onChange={(hex) => updateColor(subKey, hex)} size={20} />
                             </div>
                             {!isSubHidden && (
                               <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '4px' }}>
@@ -1149,8 +1148,8 @@ function Flow() {
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', gap: '16px' }}>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>Include viability</div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>Print viability badge and comment on each card</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>Include viability comment</div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>Print the viability comment below the description</div>
               </div>
               <ToggleSwitch checked={pdfOptions.includeViability} onChange={() => setPdfOptions(o => ({ ...o, includeViability: !o.includeViability }))} />
             </div>
@@ -1160,7 +1159,7 @@ function Flow() {
                 Cancel
               </button>
               <button
-                onClick={() => { generatePDF(nodes, pdfOptions); setIsPdfDialogOpen(false); }}
+                onClick={() => { const groupNamesMap = Object.fromEntries(fileGroups.map(fg => [fg.id, fg.name])); generatePDF(nodes, pdfOptions, groupNamesMap); setIsPdfDialogOpen(false); }}
                 style={{ flex: 1, background: '#0f172a', color: 'white', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}
               >
                 Export
