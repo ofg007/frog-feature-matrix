@@ -19,6 +19,7 @@ const TAG = {
 const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsoluteY }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showViabilityTooltip, setShowViabilityTooltip] = useState(false);
+  const [showFeasTooltip, setShowFeasTooltip] = useState(false);
 
   const avgFeasibility = (positionAbsoluteX / 400 + 1).toFixed(1);
   const desirability = (5 - positionAbsoluteY / 300).toFixed(1);
@@ -139,11 +140,15 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
             </p>
           )}
           {data.showCoordinates && (
-            <div style={{
-              borderTop: data.description ? '1px solid #e2e8f0' : 'none',
-              paddingTop: data.description ? '8px' : '0',
-              display: 'flex', flexDirection: 'column', gap: '3px',
-            }}>
+            <div
+              style={{
+                borderTop: data.description ? '1px solid #e2e8f0' : 'none',
+                paddingTop: data.description ? '8px' : '0',
+                display: 'flex', flexDirection: 'column', gap: '3px',
+              }}
+              onMouseEnter={() => (data.feasibilityDependencies || data.feasibilityComments) && setShowFeasTooltip(true)}
+              onMouseLeave={() => setShowFeasTooltip(false)}
+            >
               {/* Individual feasibility — both label and value grey */}
               {[['Technical Feasibility', data.techFeasibility], ['Business Feasibility', data.bizFeasibility], ['Legal Feasibility', data.legalFeasibility]].map(([label, val]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#94a3b8' }}>
@@ -158,6 +163,31 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
                   <span>{label}</span><span>{val}</span>
                 </div>
               ))}
+              {/* Feasibility extra info — inline on hover */}
+              {showFeasTooltip && (data.feasibilityDependencies || data.feasibilityComments) && (
+                <div style={{
+                  marginTop: '4px',
+                  background: '#1e293b',
+                  borderRadius: '5px',
+                  padding: '7px 9px',
+                  fontSize: '10px',
+                  color: 'white',
+                  lineHeight: 1.5,
+                }}>
+                  {data.feasibilityDependencies && (
+                    <div style={{ marginBottom: data.feasibilityComments ? '4px' : 0 }}>
+                      <span style={{ fontWeight: 700, color: '#94a3b8' }}>Dependencies: </span>
+                      {data.feasibilityDependencies}
+                    </div>
+                  )}
+                  {data.feasibilityComments && (
+                    <div>
+                      <span style={{ fontWeight: 700, color: '#94a3b8' }}>Comments: </span>
+                      {data.feasibilityComments}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

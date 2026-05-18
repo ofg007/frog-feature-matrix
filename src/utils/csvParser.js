@@ -56,7 +56,8 @@ export const parseCSVs = async (files, callback) => {
         const functionName = na(row[3]) || `Feature ${index + 1}`;
         const featureExplanation = na(row[4]);
 
-        let techFeasibility, bizFeasibility, legalFeasibility, rawY, viability, viabilityComment;
+        let techFeasibility, bizFeasibility, legalFeasibility, rawY, viability, viabilityComment,
+            feasibilityDependencies, feasibilityComments;
 
         if (isNewFormat) {
           const parsedTechF  = parseFloat(row[5]);
@@ -71,6 +72,8 @@ export const parseCSVs = async (files, callback) => {
           const rawV = (row[9] || '').toString().trim().toUpperCase();
           viability = (rawV === 'A' || rawV === 'B') ? rawV : null;
           viabilityComment = na(row[10]) || null;
+          feasibilityDependencies = na(row[11]) || null;
+          feasibilityComments = na(row[12]) || null;
           // reuse outOfScope below
           var outOfScope = outOfScopeNew;
         } else {
@@ -84,6 +87,8 @@ export const parseCSVs = async (files, callback) => {
           const rawV = (row[7] || '').toString().trim().toUpperCase();
           viability = (rawV === 'A' || rawV === 'B') ? rawV : null;
           viabilityComment = na(row[8]) || null;
+          feasibilityDependencies = na(row[9]) || null;
+          feasibilityComments = na(row[10]) || null;
         }
 
         const avgFeasibility = (techFeasibility + bizFeasibility + legalFeasibility) / 3;
@@ -121,6 +126,8 @@ export const parseCSVs = async (files, callback) => {
             rawY,
             viability,
             viabilityComment,
+            feasibilityDependencies,
+            feasibilityComments,
             fileGroupId,
           },
         };

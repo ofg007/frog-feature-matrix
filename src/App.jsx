@@ -16,12 +16,13 @@ import { Download, Upload, Filter, Eye, EyeOff, Info, ChevronDown, ChevronRight,
 import { generatePDF } from './utils/pdfExport';
 
 const AxisNode = ({ data }) => {
+  const color = data.color || '#cbd5e1';
   return (
     <div style={{
       width: data.width || 1,
       height: data.height || 1,
-      borderTop: data.horizontal ? '3px dashed #cbd5e1' : 'none',
-      borderLeft: !data.horizontal ? '3px dashed #cbd5e1' : 'none',
+      borderTop: data.horizontal ? `2px dashed ${color}` : 'none',
+      borderLeft: !data.horizontal ? `2px dashed ${color}` : 'none',
       pointerEvents: 'none'
     }} />
   );
@@ -42,17 +43,19 @@ const PerimeterNode = ({ data }) => {
 
 const AxisLabelNode = ({ data }) => (
   <div style={{
-    fontSize: '11px',
-    fontWeight: 700,
-    color: '#64748b',
-    background: 'rgba(255,255,255,0.9)',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    border: '1px solid #cbd5e1',
+    fontSize: data.magenta ? '10px' : '11px',
+    fontWeight: data.magenta ? 700 : 700,
+    color: data.magenta ? '#E2007A' : '#64748b',
+    background: data.magenta ? 'transparent' : 'rgba(255,255,255,0.9)',
+    padding: data.magenta ? '0' : '2px 6px',
+    borderRadius: data.magenta ? '0' : '4px',
+    border: data.magenta ? 'none' : '1px solid #cbd5e1',
     pointerEvents: 'none',
     userSelect: 'none',
     whiteSpace: 'nowrap',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+    fontStyle: data.magenta ? 'italic' : 'normal',
+    letterSpacing: data.magenta ? '0.08em' : 'normal',
+    boxShadow: data.magenta ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'
   }}>
     {data.text}
   </div>
@@ -62,26 +65,28 @@ const QuadrantNode = ({ data }) => {
   const corner = data.labelCorner;
   const labelStyle = {
     position: 'absolute',
-    fontSize: '15px',
+    fontSize: '14px',
     fontWeight: 800,
     color: data.color,
     textTransform: 'uppercase',
-    letterSpacing: '0.12em',
-    opacity: 0.4,
+    letterSpacing: '0.14em',
+    fontStyle: 'italic',
+    opacity: 0.75,
     whiteSpace: 'nowrap',
     pointerEvents: 'none',
     userSelect: 'none',
-    top: corner === 'top-left' || corner === 'top-right' ? '20px' : undefined,
-    bottom: corner === 'bottom-left' || corner === 'bottom-right' ? '20px' : undefined,
-    left: corner === 'top-left' || corner === 'bottom-left' ? '20px' : undefined,
-    right: corner === 'top-right' || corner === 'bottom-right' ? '20px' : undefined,
+    top: corner === 'top-left' || corner === 'top-right' ? '18px' : undefined,
+    bottom: corner === 'bottom-left' || corner === 'bottom-right' ? '18px' : undefined,
+    left: corner === 'top-left' || corner === 'bottom-left' ? '18px' : undefined,
+    right: corner === 'top-right' || corner === 'bottom-right' ? '18px' : undefined,
   };
   return (
     <div style={{
       width: data.width,
       height: data.height,
       background: data.bg,
-      borderRadius: data.borderRadius,
+      border: data.border || 'none',
+      borderRadius: 0,
       pointerEvents: 'none',
       position: 'relative',
       boxSizing: 'border-box',
@@ -120,6 +125,7 @@ const ToggleSwitch = ({ checked, onChange }) => (
 );
 
 const PERIMETER_BOUNDS = { xMin: -40, xMax: 1640, yMin: -40, yMax: 1240 };
+const MAGENTA = '#E2007A';
 
 const nodeTypes = {
   featureCard: FeatureCardNode,
@@ -388,17 +394,32 @@ function Flow() {
 
   const quadrantNodes = useMemo(() => {
     if (!settings.showQuadrants) return [];
-    const mk = (id, x, y, bg, color, borderRadius, label, labelCorner) => ({
+    const mk = (id, x, y, label, labelCorner, bg, border = 'none') => ({
       id, type: 'quadrant',
       position: { x, y },
-      data: { width: 840, height: 640, bg, color, borderRadius, label, labelCorner },
+      data: { width: 840, height: 640, bg, border, color: MAGENTA, label, labelCorner },
       draggable: false, selectable: false, zIndex: -3,
     });
+    const lbl = (id, x, y, text, magenta = false) => ({
+      id, type: 'axisLabel',
+      position: { x, y },
+      data: { text, magenta },
+      draggable: false, selectable: false, zIndex: -1,
+    });
+    const FILL = 'rgba(226,0,122,0.07)';
     return [
-      mk('quad-tl', -40, -40, 'rgba(139,92,246,0.07)', '#7c3aed', '22px 0 0 0', 'Big Bets', 'top-left'),
-      mk('quad-tr', 800, -40, 'rgba(16,185,129,0.07)', '#059669', '0 22px 0 0', 'Easy Wins', 'top-right'),
-      mk('quad-bl', -40, 600, 'rgba(239,68,68,0.05)', '#dc2626', '0 0 0 22px', 'Why?', 'bottom-left'),
-      mk('quad-br', 800, 600, 'rgba(245,158,11,0.07)', '#d97706', '0 0 22px 0', 'Fill Ins', 'bottom-right'),
+      mk('quad-tl', -40,  -40, 'Big Bets',   'top-left',     FILL),
+      mk('quad-tr', 800,  -40, 'Quick Wins',  'top-right',    FILL),
+      mk('quad-bl', -40,  600, 'Why?',        'bottom-left',  'transparent', '1.5px solid rgba(226,0,122,0.35)'),
+      mk('quad-br', 800,  600, 'Fill-ins',    'bottom-right', 'transparent'),
+      // Magenta axis overlays
+      { id: 'quad-x-axis', type: 'axis', position: { x: -3000, y: 600 }, data: { horizontal: true, width: 8000, height: 4, color: MAGENTA }, draggable: false, selectable: false, zIndex: -1 },
+      { id: 'quad-y-axis', type: 'axis', position: { x: 800, y: -3000 }, data: { horizontal: false, width: 4, height: 8000, color: MAGENTA }, draggable: false, selectable: false, zIndex: -1 },
+      // HIGH / LOW axis markers
+      lbl('q-low-x',  -38, 614, 'LOW', true),
+      lbl('q-high-x', 1590, 614, 'HIGH', true),
+      lbl('q-high-y',  812, -32, 'HIGH', true),
+      lbl('q-low-y',   812, 1202, 'LOW', true),
     ];
   }, [settings.showQuadrants]);
 
@@ -848,7 +869,7 @@ function Flow() {
         )}
 
         <ReactFlow
-          nodes={[...quadrantNodes, ...nodes, ...axisLabelNodes]}
+          nodes={[...quadrantNodes, ...nodes.filter(n => !settings.showQuadrants || (n.id !== 'x-axis' && n.id !== 'y-axis' && n.id !== 'perimeter')), ...axisLabelNodes]}
           edges={edges}
           onNodesChange={onNodesChange}
           onNodeDragStart={onNodeDragStart}
@@ -861,7 +882,7 @@ function Flow() {
           nodesDraggable={true}
           multiSelectionKeyCode={null}
         >
-          <Background gap={50} size={1} color="#e2e8f0" />
+          {!settings.showQuadrants && <Background gap={50} size={1} color="#e2e8f0" />}
           <Controls fitViewOptions={{ nodes: [{ id: 'perimeter' }], padding: 0.05 }} />
 
           {/* Axis Labels Overlay */}
@@ -1057,7 +1078,7 @@ function Flow() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', gap: '16px' }}>
               <div>
                 <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>Highlight quadrants</div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>Colour the four quadrants and show their names — Easy Wins, Big Bets, Fill Ins, Why?</div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>Colour the four quadrants and show their names — Quick Wins, Big Bets, Fill-ins, Why?</div>
               </div>
               <ToggleSwitch
                 checked={settings.showQuadrants}
