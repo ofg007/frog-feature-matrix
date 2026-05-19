@@ -123,9 +123,9 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
       {/* Expanding section */}
       <div style={{
         overflow: 'hidden',
-        maxHeight: isExpanded ? '500px' : '0px',
+        maxHeight: isExpanded ? '1200px' : '0px',
         opacity: isExpanded ? 1 : 0,
-        transition: 'max-height 0.3s ease, opacity 0.25s ease',
+        transition: 'max-height 0.35s ease, opacity 0.25s ease',
       }}>
         <div style={{
           marginTop: '10px',
@@ -139,34 +139,77 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
               {data.description}
             </p>
           )}
-          {data.showCoordinates && (
-            <div
-              style={{
-                borderTop: data.description ? '1px solid #e2e8f0' : 'none',
-                paddingTop: data.description ? '8px' : '0',
-                display: 'flex', flexDirection: 'column', gap: '3px',
-              }}
-              onMouseEnter={() => (data.feasibilityDependencies || data.feasibilityComments) && setShowFeasTooltip(true)}
-              onMouseLeave={() => setShowFeasTooltip(false)}
-            >
-              {/* Individual feasibility — both label and value grey */}
-              {[['Technical Feasibility', data.techFeasibility], ['Business Feasibility', data.bizFeasibility], ['Legal Feasibility', data.legalFeasibility]].map(([label, val]) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#94a3b8' }}>
-                  <span>{label}</span><span>{val?.toFixed(1) ?? '—'}</span>
+
+          {/* Feasibility section — always shown when coordinates on, or when notes exist */}
+          {(data.showCoordinates || data.feasibilityDependencies || data.feasibilityComments) && (
+            <div style={{
+              borderTop: data.description ? '1px solid #e2e8f0' : 'none',
+              paddingTop: data.description ? '8px' : '0',
+              display: 'flex', flexDirection: 'column', gap: '3px',
+            }}>
+              {data.showCoordinates ? (
+                <>
+                  {/* Header row with ? icon */}
+                  {(data.feasibilityDependencies || data.feasibilityComments) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                      <span style={{ fontSize: '9px', fontWeight: 600, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Feasibility</span>
+                      <div
+                        onMouseEnter={() => setShowFeasTooltip(true)}
+                        onMouseLeave={() => setShowFeasTooltip(false)}
+                        style={{
+                          width: '14px', height: '14px',
+                          borderRadius: '50%',
+                          background: showFeasTooltip ? '#475569' : '#e2e8f0',
+                          color: showFeasTooltip ? 'white' : '#94a3b8',
+                          fontSize: '9px', fontWeight: 700,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'help',
+                          transition: 'background 0.15s, color 0.15s',
+                          userSelect: 'none',
+                          flexShrink: 0,
+                        }}
+                      >
+                        ?
+                      </div>
+                    </div>
+                  )}
+                  {[['Technical Feasibility', data.techFeasibility], ['Business Feasibility', data.bizFeasibility], ['Legal Feasibility', data.legalFeasibility]].map(([label, val]) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#94a3b8' }}>
+                      <span>{label}</span><span>{val?.toFixed(1) ?? '—'}</span>
+                    </div>
+                  ))}
+                  <div style={{ borderTop: '1px solid #e2e8f0', margin: '2px 0' }} />
+                  {[['Avg. Feasibility', avgFeasibility], ['Desirability', desirability]].map(([label, val]) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: '#1e293b' }}>
+                      <span>{label}</span><span>{val}</span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                /* Coordinates hidden — show hover hint */
+                <div
+                  style={{ fontSize: '10px', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onMouseEnter={() => setShowFeasTooltip(true)}
+                  onMouseLeave={() => setShowFeasTooltip(false)}
+                >
+                  <div style={{
+                    width: '14px', height: '14px',
+                    borderRadius: '50%',
+                    background: showFeasTooltip ? '#475569' : '#e2e8f0',
+                    color: showFeasTooltip ? 'white' : '#94a3b8',
+                    fontSize: '9px', fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'help', flexShrink: 0,
+                    transition: 'background 0.15s, color 0.15s',
+                  }}>?</div>
+                  <span>Feasibility notes</span>
                 </div>
-              ))}
-              {/* Divider */}
-              <div style={{ borderTop: '1px solid #e2e8f0', margin: '2px 0' }} />
-              {/* Avg. Feasibility and Desirability — label and value black, bold */}
-              {[['Avg. Feasibility', avgFeasibility], ['Desirability', desirability]].map(([label, val]) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: '#1e293b' }}>
-                  <span>{label}</span><span>{val}</span>
-                </div>
-              ))}
-              {/* Feasibility extra info — inline on hover */}
-              {showFeasTooltip && (data.feasibilityDependencies || data.feasibilityComments) && (
+              )}
+
+              {/* Inline info panel on hover */}
+              {showFeasTooltip && (
                 <div style={{
-                  marginTop: '4px',
+                  marginTop: '5px',
                   background: '#1e293b',
                   borderRadius: '5px',
                   padding: '7px 9px',

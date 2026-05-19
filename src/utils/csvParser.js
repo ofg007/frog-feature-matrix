@@ -9,8 +9,10 @@ const parseSingleCSV = (file) => {
     Papa.parse(file, {
       header: false,
       skipEmptyLines: true,
+      encoding: 'UTF-8',       // handles Windows BOM (﻿) from Excel
+      delimitersToGuess: [',', ';', '\t', '|'],  // handles locale-specific separators
       complete: (results) => resolve(results.data),
-      error: (error) => reject(error)
+      error: (error) => reject(new Error(`${file.name}: ${error.message || error}`)),
     });
   });
 };
@@ -139,39 +141,17 @@ export const parseCSVs = async (files, callback) => {
     callback(allNodes, fileGroups);
   } catch (error) {
     console.error('Error parsing CSVs:', error);
-    alert('Failed to parse CSV files.');
+    alert(`Failed to parse CSV files.\n\n${error?.message || error}`);
   }
 };
 
-export const exportToCSV = (nodes) => {
+export const exportToCSV = (nodes, fileGroups = []) => {
   if (!nodes || nodes.length === 0) return;
 
   const featureNodes = nodes.filter(n => n.type === 'featureCard');
   if (featureNodes.length === 0) return;
 
-  const dataToExport = featureNodes.map(node => {
-    const { techFeasibility, bizFeasibility, legalFeasibility } = node.data;
-    const newAvg = (node.position.x / SCALE_X) + 1;
-    const originalAvg = (techFeasibility + bizFeasibility + legalFeasibility) / 3;
-    const delta = newAvg - originalAvg;
-
-    const newRawY = Y_MAX_VALUE - (node.position.y / SCALE_Y);
-
-    return [
-      node.data.clusterName,
-      node.data.subClusterName,
-      node.data.subClusterExplanation,
-      node.data.title,
-      node.data.description,
-      (techFeasibility  + delta).toFixed(2),
-      (bizFeasibility   + delta).toFixed(2),
-      (legalFeasibility + delta).toFixed(2),
-      newRawY.toFixed(2),
-      node.data.viability != null ? node.data.viability : ''
-    ];
-  });
-
-  dataToExport.unshift([
+  const HEADER = [
     'Cluster Name',
     'Sub-cluster Name',
     'Sub-cluster Explanation',
@@ -181,17 +161,76 @@ export const exportToCSV = (nodes) => {
     'Business Feasibility',
     'Legal Feasibility',
     'Desirability',
-    'Viability'
-  ]);
+    'Viability',
+    'Viability Comment',
+    'Feasibility Dependencies',
+    'Feasibility Comments',
+  ];
 
-  const csv = Papa.unparse(dataToExport);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
+  const toRow = (node) => {
+    const { techFeasibility, bizFeasibility, legalFeasibility } = node.data;
+    let techF, bizF, legalF, desirability;
 
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', 'adjusted_feature_matrix.csv');
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+    if (node.data.missingCoords) {
+      // No canvas position — preserve original values
+      techF = techFeasibility;
+      bizF = bizFeasibility;
+      legalF = legalFeasibility;
+      desirability = node.data.rawY ?? 1;
+    } else {
+      const newAvg = (node.position.x / SCALE_X) + 1;
+      const delta = newAvg - (techFeasibility + bizFeasibility + legalFeasibility) / 3;
+      techF = techFeasibility + delta;
+      bizF  = bizFeasibility  + delta;
+      legalF = legalFeasibility + delta;
+      desirability = Y_MAX_VALUE - (node.position.y / SCALE_Y);
+    }
+
+    return [
+      node.data.clusterName             ?? '',
+      node.data.subClusterName          ?? '',
+      node.data.subClusterExplanation   ?? '',
+      node.data.title                   ?? '',
+      node.data.description             ?? '',
+      techF.toFixed(2),
+      bizF.toFixed(2),
+      legalF.toFixed(2),
+      desirability.toFixed(2),
+      node.data.viability               ?? '',
+      node.data.viabilityComment        ?? '',
+      node.data.feasibilityDependencies ?? '',
+      node.data.feasibilityComments     ?? '',
+    ];
+  };
+
+  // Group nodes by their source file
+  const groupMap = new Map();
+  featureNodes.forEach(node => {
+    const gid = node.data.fileGroupId || '__default__';
+    if (!groupMap.has(gid)) groupMap.set(gid, []);
+    groupMap.get(gid).push(node);
+  });
+
+  const groupNameMap = Object.fromEntries(fileGroups.map(fg => [fg.id, fg.name]));
+
+  groupMap.forEach((groupNodes, groupId) => {
+    const rows = [HEADER, ...groupNodes.map(toRow)];
+    const csv  = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+
+    const displayName = groupNameMap[groupId] || groupId;
+    const safeName    = displayName.replace(/[^a-z0-9_\-]/gi, '_');
+    const filename    = groupId === '__default__'
+      ? 'feature_matrix_export.csv'
+      : `${safeName}_export.csv`;
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  });
 };

@@ -7,12 +7,15 @@ import {
   applyNodeChanges,
   Panel,
   useReactFlow,
-  ReactFlowProvider
+  ReactFlowProvider,
+  getNodesBounds,
+  getViewportForBounds,
 } from '@xyflow/react';
+import { toPng } from 'html-to-image';
 import '@xyflow/react/dist/style.css';
 import { parseCSVs, exportToCSV } from './utils/csvParser';
 import FeatureCardNode, { moveToBucketRef } from './FeatureCardNode';
-import { Download, Upload, Filter, Eye, EyeOff, Info, ChevronDown, ChevronRight, Trash2, Settings, Archive, X, RotateCcw, FileText } from 'lucide-react';
+import { Download, Upload, Filter, Eye, EyeOff, Info, ChevronDown, ChevronRight, Trash2, Settings, Archive, X, RotateCcw, FileText, ImageDown } from 'lucide-react';
 import { generatePDF } from './utils/pdfExport';
 
 const AxisNode = ({ data }) => {
@@ -285,7 +288,7 @@ function Flow() {
   });
   const [edges, setEdges] = useState([]);
   const fileInputRef = useRef(null);
-  const { setViewport } = useReactFlow();
+  const { setViewport, getNodes } = useReactFlow();
 
   const [hiddenClusters, setHiddenClusters] = useState(() => loadFromStorage('fm_hiddenClusters', [], true));
   const [hiddenSubClusters, setHiddenSubClusters] = useState(() => loadFromStorage('fm_hiddenSubClusters', [], true));
@@ -299,6 +302,8 @@ function Flow() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [pdfOptions, setPdfOptions] = useState({ includeCoordinates: false, includeViability: true });
+  const [isPngDialogOpen, setIsPngDialogOpen] = useState(false);
+  const [pngOptions, setPngOptions] = useState({ includeAxes: true });
   const [isBucketOpen, setIsBucketOpen] = useState(false);
   const [settings, setSettings] = useState(() =>
     loadFromStorage('fm_settings', { showAxisValues: false, showCardCoordinates: false, showQuadrants: false, showViabilityBadges: true })
@@ -513,8 +518,55 @@ function Flow() {
   };
 
   const handleExport = () => {
-    exportToCSV(nodes);
+    exportToCSV(nodes, fileGroups);
   };
+
+  const handleExportPng = useCallback(() => {
+    const visibleCards = getNodes().filter(n => n.type === 'featureCard' && !n.hidden);
+    if (visibleCards.length === 0) {
+      alert('No visible cards to export.');
+      return;
+    }
+    const bounds = getNodesBounds(visibleCards);
+    const IMAGE_WIDTH = 2400;
+    const aspectRatio = (bounds.width > 0 && bounds.height > 0) ? bounds.height / bounds.width : 0.75;
+    const IMAGE_HEIGHT = Math.min(2400, Math.max(1000, Math.round(IMAGE_WIDTH * aspectRatio)));
+    const viewport = getViewportForBounds(bounds, IMAGE_WIDTH, IMAGE_HEIGHT, 0.5, 2, 0.12);
+
+    const viewportEl = document.querySelector('.react-flow__viewport');
+    if (!viewportEl) return;
+
+    toPng(viewportEl, {
+      backgroundColor: undefined,
+      width: IMAGE_WIDTH,
+      height: IMAGE_HEIGHT,
+      style: {
+        width: `${IMAGE_WIDTH}px`,
+        height: `${IMAGE_HEIGHT}px`,
+        transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+      },
+      filter: (node) => {
+        if (node.classList?.contains('react-flow__background')) return false;
+        if (!pngOptions.includeAxes) {
+          const dataId = node.getAttribute?.('data-id');
+          if (dataId && ['x-axis', 'y-axis', 'quad-x-axis', 'quad-y-axis', 'perimeter'].includes(dataId)) return false;
+        }
+        return true;
+      },
+      pixelRatio: 1,
+    }).then((dataUrl) => {
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'feature-matrix.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setIsPngDialogOpen(false);
+    }).catch(() => {
+      alert('Failed to export PNG.');
+      setIsPngDialogOpen(false);
+    });
+  }, [getNodes, pngOptions]);
 
   // Compute Hierarchy
   const hierarchy = useMemo(() => {
@@ -970,6 +1022,13 @@ function Flow() {
             >
               <FileText size={18} /> Export PDF
             </button>
+            <button
+              onClick={() => setIsPngDialogOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0f172a', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 500, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+              disabled={nodes.length === 0}
+            >
+              <ImageDown size={18} /> Export PNG
+            </button>
             {nodes.length > 0 && (
               <button
                 onClick={() => setIsConfirmingClear(true)}
@@ -1181,6 +1240,39 @@ function Flow() {
               </button>
               <button
                 onClick={() => { const groupNamesMap = Object.fromEntries(fileGroups.map(fg => [fg.id, fg.name])); generatePDF(nodes, pdfOptions, groupNamesMap); setIsPdfDialogOpen(false); }}
+                style={{ flex: 1, background: '#0f172a', color: 'white', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {isPngDialogOpen && createPortal(
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', maxWidth: '420px', width: '90%' }}>
+            <div style={{ background: '#f1f5f9', width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
+              <ImageDown size={24} color="#0f172a" />
+            </div>
+            <h3 style={{ margin: '0 0 6px', fontSize: '18px', color: '#0f172a', textAlign: 'center' }}>Export to PNG</h3>
+            <p style={{ margin: '0 0 24px', fontSize: '13px', color: '#64748b', textAlign: 'center', lineHeight: 1.5 }}>
+              Transparent background · framed to visible cards · 2400px wide
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', gap: '16px' }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>Include axes</div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>Show axis lines and quadrant dividers in the export</div>
+              </div>
+              <ToggleSwitch checked={pngOptions.includeAxes} onChange={() => setPngOptions(o => ({ ...o, includeAxes: !o.includeAxes }))} />
+            </div>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+              <button onClick={() => setIsPngDialogOpen(false)} style={{ flex: 1, background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
+                Cancel
+              </button>
+              <button
+                onClick={handleExportPng}
                 style={{ flex: 1, background: '#0f172a', color: 'white', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}
               >
                 Export
