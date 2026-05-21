@@ -11,11 +11,11 @@ import {
   getNodesBounds,
   getViewportForBounds,
 } from '@xyflow/react';
-import { toPng } from 'html-to-image';
+import { toPng, toSvg } from 'html-to-image';
 import '@xyflow/react/dist/style.css';
 import { parseCSVs, exportToCSV } from './utils/csvParser';
 import FeatureCardNode, { moveToBucketRef } from './FeatureCardNode';
-import { Download, Upload, Filter, Eye, EyeOff, Info, ChevronDown, ChevronRight, Trash2, Settings, Archive, X, RotateCcw, FileText, ImageDown } from 'lucide-react';
+import { Download, Upload, Filter, Eye, EyeOff, Info, ChevronDown, ChevronRight, Trash2, Settings, Archive, X, RotateCcw, FileText, ImageDown, Copy } from 'lucide-react';
 import { generatePDF } from './utils/pdfExport';
 
 const AxisNode = ({ data }) => {
@@ -568,6 +568,7 @@ function Flow() {
     });
   }, [getNodes, pngOptions]);
 
+
   // Compute Hierarchy
   const hierarchy = useMemo(() => {
     const tree = {};
@@ -1029,6 +1030,7 @@ function Flow() {
             >
               <ImageDown size={18} /> Export PNG
             </button>
+
             {nodes.length > 0 && (
               <button
                 onClick={() => setIsConfirmingClear(true)}

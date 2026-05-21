@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { ChevronDown, GripHorizontal, Archive } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { ChevronDown, Archive, Copy } from 'lucide-react';
+import { toBlob, toSvg } from 'html-to-image';
 
 export const moveToBucketRef = { current: null };
 
@@ -26,8 +27,87 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
 
   const showArrow = data.viability === 'A' && data.showViabilityBadges !== false;
 
+  const cardRef = useRef(null);
+  const [copyStatus, setCopyStatus] = useState('idle');
+
+  // Helper to escape XML strings
+  const escapeXml = (unsafe) => {
+    return (unsafe || '').replace(/[<>&'"]/g, function (c) {
+      switch (c) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '\'': return '&apos;';
+        case '"': return '&quot;';
+        default: return c;
+      }
+    });
+  };
+
+  // Crude text wrapper for SVG
+  const wrapText = (text, maxChars) => {
+    const words = (text || '').split(' ');
+    const lines = [];
+    let currentLine = '';
+    words.forEach(w => {
+      if ((currentLine + w).length > maxChars) {
+        if (currentLine) lines.push(currentLine.trim());
+        currentLine = w + ' ';
+      } else {
+        currentLine += w + ' ';
+      }
+    });
+    if (currentLine) lines.push(currentLine.trim());
+    return lines;
+  };
+
+  const handleCopySvg = (e) => {
+    e.stopPropagation();
+    if (!cardRef.current) return;
+    setCopyStatus('copying');
+
+    const width = cardRef.current.offsetWidth;
+    const height = cardRef.current.offsetHeight;
+
+    const filterFn = (node) => {
+      // Exclude action buttons and drag handle from export
+      if (node.classList?.contains('card-actions-row') || node.classList?.contains('custom-drag-handle')) {
+        return false;
+      }
+      return true;
+    };
+
+    const baseOpts = {
+      width,
+      height,
+      backgroundColor: 'white',
+      style: { margin: 0, transform: 'none' },
+      filter: filterFn,
+    };
+
+    // We generate ONLY a high-res PNG. 
+    // PowerPoint completely misinterprets any SVG/HTML clipboard data from browsers as raw text.
+    // By exclusively sending a high-res PNG, we force PowerPoint to paste a flawless, crisp graphic.
+    toBlob(cardRef.current, { ...baseOpts, pixelRatio: 4 }).then((pngBlob) => {
+      const items = {
+        'image/png': pngBlob
+      };
+
+      navigator.clipboard.write([new ClipboardItem(items)]).then(() => {
+        setCopyStatus('success');
+        setTimeout(() => setCopyStatus('idle'), 2000);
+      }).catch(err => {
+        console.error('Clipboard API failed', err);
+        setCopyStatus('idle');
+      });
+    }).catch(err => {
+      console.error('Failed to generate PNG export', err);
+      setCopyStatus('idle');
+    });
+  };
+
   return (
-    <div style={{
+    <div ref={cardRef} style={{
       background: 'white',
       borderRadius: '10px',
       border: `1.5px solid ${selected ? '#3b82f6' : isExpanded ? '#c7d2fe' : '#e2e8f0'}`,
@@ -42,16 +122,6 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
       transition: 'width 0.25s ease, box-shadow 0.2s, border-color 0.2s',
       position: 'relative',
     }}>
-
-      {/* Drag handle */}
-      <div className="custom-drag-handle" style={{
-        position: 'absolute', top: '5px', left: '50%',
-        transform: 'translateX(-50%)',
-        cursor: 'grab', color: '#d1d5db',
-        display: 'flex', alignItems: 'center',
-      }}>
-        <GripHorizontal size={14} />
-      </div>
 
       {/* Viability arrow — only shown for A */}
       {showArrow && (
@@ -236,8 +306,8 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
         </div>
       </div>
 
-      {/* Bottom row — archive left, expand/collapse right */}
-      <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center' }}>
+      {/* Bottom row — archive left, copy, expand/collapse right */}
+      <div className="card-actions-row" style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <div
           onClick={(e) => { e.stopPropagation(); moveToBucketRef.current?.(id); }}
           title="Move to Out of Scope"
@@ -246,6 +316,15 @@ const FeatureCardNode = ({ id, data, selected, positionAbsoluteX, positionAbsolu
           onMouseLeave={(e) => e.currentTarget.style.color = '#e2e8f0'}
         >
           <Archive size={11} />
+        </div>
+        <div
+          onClick={handleCopySvg}
+          title={copyStatus === 'success' ? "Copied!" : "Copy"}
+          style={{ cursor: 'pointer', color: copyStatus === 'success' ? '#10b981' : '#e2e8f0', transition: 'color 0.15s', display: 'flex', alignItems: 'center' }}
+          onMouseEnter={(e) => { if (copyStatus !== 'success') e.currentTarget.style.color = '#3b82f6'; }}
+          onMouseLeave={(e) => { if (copyStatus !== 'success') e.currentTarget.style.color = '#e2e8f0'; }}
+        >
+          {copyStatus === 'success' ? <span style={{ fontSize: '10px', fontWeight: 'bold' }}>✓</span> : <Copy size={11} />}
         </div>
         <div style={{ flex: 1 }} />
         <div
